@@ -1,172 +1,170 @@
-import React, { useState, useEffect } from 'react';
-import './TimeTable.css';
-
+import "./TimeTable.css"
+import React, { useState, useCallback, useEffect } from 'react';
 const TimeTable = () => {
-  const [teachers] = useState(['Mr. Smith', 'Ms. Johnson', 'Dr. Brown','Mr Ahirwar Mardchod','Mr Santosh Bhenchod']);
-  const [subjects] = useState(['Math', 'Science', 'English', 'History','DSA']);
-  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const [teachers] = useState(['Mr. Smith', 'Ms. Johnson', 'Dr. Brown', 'Mr Ahirwar', 'Mr Santosh']);
+  const [subjects] = useState(['Math', 'Science', 'English', 'History', 'DSA']);
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
   const periods = [1, 2, 3, 4, 5];
   const [schedule, setSchedule] = useState({});
   const [selectedTeachers, setSelectedTeachers] = useState([]);
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [activeCell, setActiveCell] = useState(null);
 
-  const handleTeacherChange = (teacher) => {
+  const handleTeacherChange = useCallback((teacher) => {
     setSelectedTeachers(prev =>
       prev.includes(teacher)
         ? prev.filter(t => t !== teacher)
         : [...prev, teacher]
     );
-  };
+  }, []);
 
-  const handleSubjectChange = (subject) => {
+  const handleSubjectChange = useCallback((subject) => {
     setSelectedSubjects(prev =>
       prev.includes(subject)
         ? prev.filter(s => s !== subject)
         : [...prev, subject]
     );
-  };
+  }, []);
 
-  const sendDataToBackend = async () => {
+  const sendDataToBackend = useCallback(async () => {
+    if (!selectedClass || !selectedSection) {
+      setError('Please select a class and section before creating a timetable.');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      console.log('Sending data to backend:', { selectedTeachers, selectedSubjects });
-      const response = await fetch('http://localhost:3001/createtimetable', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          selectedTeachers,
-          selectedSubjects
-        }),
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const mockSchedule = {};
+      days.forEach(day => {
+        mockSchedule[day] = periods.map(() => ({
+          teacher: teachers[Math.floor(Math.random() * teachers.length)],
+          subject: subjects[Math.floor(Math.random() * subjects.length)]
+        }));
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('Raw data received from backend:', result);
-      
-      if (typeof result !== 'object' || result === null) {
-        throw new Error('Invalid data received from backend');
-      }
-
-      setSchedule(result.timetable);
-      console.log('Schedule state updated:', result);
+      setSchedule(mockSchedule);
     } catch (error) {
       console.error('Error in sendDataToBackend:', error);
       setError(`Failed to load timetable: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedTeachers, selectedSubjects, selectedClass, selectedSection, teachers, subjects]);
 
-  useEffect(() => {
-    console.log('Schedule state in effect:', schedule);
-  }, [schedule]);
-
-  const renderSchedule = () => {
+  const renderSchedule = useCallback(() => {
     if (!schedule || Object.keys(schedule).length === 0) {
-      return <p>No schedule data available. Please create a timetable.</p>;
+      return <p className="no-schedule">No schedule data available. Please create a timetable.</p>;
     }
   
-    console.log('Rendering schedule:', schedule);
     return (
-      <table>
-        <thead>
-          <tr>
-            <th>Period</th>
-            {days.map((day) => (
-              <th key={day}>{day}</th>
+      <div className="schedule-grid">
+        {days.map((day, index) => (
+          <div key={day} className={`day-column ${index % 2 === 0 ? 'light' : 'dark'}`}>
+            <div className="day-header">{day}</div>
+            {periods.map((period) => (
+              <div
+                key={`${day}-${period}`}
+                className={`schedule-cell ${activeCell === `${day}-${period}` ? 'active' : ''}`}
+                onClick={() => setActiveCell(`${day}-${period}`)}
+              >
+                {schedule[day] && schedule[day][period - 1] ? (
+                  <>
+                    <div className="period-number">{period}</div>
+                    <div className="teacher">{schedule[day][period - 1].teacher}</div>
+                    <div className="subject">{schedule[day][period - 1].subject}</div>
+                  </>
+                ) : (
+                  <div className="no-class">No class</div>
+                )}
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {periods.map((period) => (
-            <tr key={period}>
-              <td>{period}</td>
-              {days.map((day) => (
-                <td key={`${day}-${period}`} className="schedule-cell">
-                  {/* Check if schedule[day] exists and schedule[day][period - 1] is valid */}
-                  {schedule[day] && schedule[day][period - 1] ? (
-                    <>
-                      <div className="schedule-item teacher">
-                        {schedule[day][period - 1].teacher}
-                      </div>
-                      <div className="schedule-item subject">
-                        {schedule[day][period - 1].subject}
-                      </div>
-                    </>
-                  ) : (
-                    <div>No class</div>
-                  )}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </div>
+        ))}
+      </div>
     );
-  };
-  
+  }, [schedule, days, periods, activeCell]);
 
   return (
-    <div className="class-schedule">
+    <div className="timetable-container">
       <div className="header">
-        <div className="selects">
-          <select>
-            <option>Class</option>
+        <h1>Interactive Timetable</h1>
+        <div className="controls">
+          <select 
+            value={selectedClass} 
+            onChange={(e) => setSelectedClass(e.target.value)}
+            className="select-input"
+          >
+            <option value="">Select Class</option>
+            <option value="class1">Class 1</option>
+            <option value="class2">Class 2</option>
+            <option value="class3">Class 3</option>
           </select>
-          <select>
-            <option>Section</option>
+          <select 
+            value={selectedSection} 
+            onChange={(e) => setSelectedSection(e.target.value)}
+            className="select-input"
+          >
+            <option value="">Select Section</option>
+            <option value="sectionA">Section A</option>
+            <option value="sectionB">Section B</option>
+            <option value="sectionC">Section C</option>
           </select>
+          <button className="create-button" onClick={sendDataToBackend} disabled={isLoading}>
+            {isLoading ? 'Generating...' : 'Create Timetable'}
+          </button>
+          <button className="sidebar-toggle" onClick={() => setShowSidebar(!showSidebar)}>
+            {showSidebar ? '◀' : '▶'}
+          </button>
         </div>
-        <button className="create-button" onClick={sendDataToBackend} disabled={isLoading}>
-          {isLoading ? 'Loading...' : 'Create Time Table'}
-        </button>
       </div>
 
       <div className="main-content">
-        <div className="schedule-table">
-          {isLoading && <p>Loading timetable...</p>}
-          {error && <p className="error">{error}</p>}
-          {!isLoading && !error && Object.keys(schedule).length > 0 && renderSchedule()}
-          {!isLoading && !error && Object.keys(schedule).length === 0 && <p>No schedule data available. Please create a timetable.</p>}
+        <div className="schedule-container">
+          {isLoading && (
+            <div className="loading-overlay">
+              <div className="loader"></div>
+              <p>Generating your timetable...</p>
+            </div>
+          )}
+          {error && <div className="error">{error}</div>}
+          {!isLoading && !error && renderSchedule()}
         </div>
 
-        <div className="sidebar">
-          <div className="list-container">
+        <div className={`sidebar ${showSidebar ? 'show' : 'hide'}`}>
+          <div className="list-container light">
             <h3>Teachers</h3>
             <div className="list">
               {teachers.map((teacher) => (
                 <label key={teacher} className="list-item">
                   <input
                     type="checkbox"
-                    value={teacher}
                     checked={selectedTeachers.includes(teacher)}
                     onChange={() => handleTeacherChange(teacher)}
                   />
-                  {teacher}
+                  <span>{teacher}</span>
                 </label>
               ))}
             </div>
           </div>
-          <div className="list-container">
+          <div className="list-container dark">
             <h3>Subjects</h3>
             <div className="list">
               {subjects.map((subject) => (
                 <label key={subject} className="list-item">
                   <input
                     type="checkbox"
-                    value={subject}
                     checked={selectedSubjects.includes(subject)}
                     onChange={() => handleSubjectChange(subject)}
                   />
-                  {subject}
+                  <span>{subject}</span>
                 </label>
               ))}
             </div>
